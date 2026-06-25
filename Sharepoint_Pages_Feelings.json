@@ -1,0 +1,796 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_commondataserviceforapps": {
+        "runtimeSource": "embedded",
+        "connection": {
+          "connectionReferenceLogicalName": "new_sharedcommondataserviceforapps_e9061"
+        },
+        "api": {
+          "name": "shared_commondataserviceforapps"
+        }
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "undefined",
+      "triggers": {
+        "Recurrence": {
+          "recurrence": {
+            "frequency": "Month",
+            "interval": 1,
+            "startTime": "2026-04-17T13:00:00Z"
+          },
+          "metadata": {
+            "operationMetadataId": "767b94da-fb9a-42eb-a0d1-2615d244aec7"
+          },
+          "type": "Recurrence"
+        }
+      },
+      "actions": {
+        "FinalOutput": {
+          "runAfter": {
+            "Params": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "c0894ae7-62c7-4040-9af6-f553821c03fb"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "FinalOutput",
+                "type": "array"
+              }
+            ]
+          }
+        },
+        "AuxPageComments": {
+          "runAfter": {
+            "FinalOutput": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "f1f342b8-d24a-4ed7-bcd5-e03d4b0fb954"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "AuxPageComments",
+                "type": "array"
+              }
+            ]
+          }
+        },
+        "Sites": {
+          "runAfter": {
+            "BackDays": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "09ee32c5-cc8c-4107-b725-36b466d23988"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "Sites",
+                "type": "array",
+                "value": [
+                  "https://contoso.sharepoint.com/sites/site1",
+                  "https://contoso.sharepoint.com/sites/site2",
+                  "https://contoso.sharepoint.com/sites/site3"
+                ]
+              }
+            ]
+          }
+        },
+        "LoopSites": {
+          "foreach": "@variables('Sites')",
+          "actions": {
+            "LoopSitePages": {
+              "actions": {
+                "GetSitePages": {
+                  "runAfter": {},
+                  "metadata": {
+                    "operationMetadataId": "be620f77-d473-408a-a8a6-931815e283a5"
+                  },
+                  "type": "Http",
+                  "inputs": {
+                    "method": "GET",
+                    "uri": "@{outputs('Site')}/_api/search/query?querytext='path:@{outputs('Site')}/SitePages/*.aspx AND contentclass:STS_ListItem_WebPageLibrary'&selectproperties='Title,Path,ViewsLifeTime,Created,ListId,ListItemID,SiteId,SiteTitle'&sortlist='Created:descending'&rowlimit=500&startrow=@{if(\r\n  equals(\r\n    iterationIndexes('LoopSitePages'),\r\n    0\r\n  ),\r\n  0,\r\n\r\n    mul(\r\n      iterationIndexes('LoopSitePages'),\r\n      500\r\n    )\r\n\r\n)}",
+                    "headers": {
+                      "accept": "application/json;odata=nometadata"
+                    },
+                    "authentication": {
+                      "type": "ActiveDirectoryOAuth",
+                      "authority": "https://login.microsoftonline.com",
+                      "tenant": "@{variables('Params')?['tenant_id']}",
+                      "audience": "https://inpartecbr-admin.sharepoint.com",
+                      "clientId": "@{variables('Params')?['client_id']}",
+                      "pfx": "@{variables('Params')?['pfx']}",
+                      "password": "@{variables('Params')?['pwd']}"
+                    }
+                  },
+                  "runtimeConfiguration": {
+                    "contentTransfer": {
+                      "transferMode": "Chunked"
+                    }
+                  }
+                },
+                "HasSitePages": {
+                  "actions": {
+                    "Pages": {
+                      "runAfter": {},
+                      "metadata": {
+                        "operationMetadataId": "facf9692-10f0-47bb-808d-43cc9d7200d5"
+                      },
+                      "type": "Select",
+                      "inputs": {
+                        "from": "@body('GetSitePages')?['PrimaryQueryResult']?['RelevantResults']?['Table']?['Rows']",
+                        "select": {
+                          "title": "@item()?['Cells'][0]['Value']",
+                          "path": "@item()?['Cells'][1]['Value']",
+                          "views": "@item()?['Cells'][2]['Value']",
+                          "created": "@item()?['Cells'][3]['Value']",
+                          "list_id": "@item()?['Cells'][4]['Value']",
+                          "item_id": "@item()?['Cells'][5]['Value']\r\n",
+                          "site_id": "@item()?['Cells'][6]['Value']",
+                          "site_name": "@item()?['Cells'][7]['Value']",
+                          "id": "@concat(item()?['Cells'][6]['Value'],'-',item()?['Cells'][4]['Value'],'-',item()?['Cells'][5]['Value'])"
+                        }
+                      }
+                    },
+                    "LoopInteractions": {
+                      "foreach": "@body('Pages')",
+                      "actions": {
+                        "GetComments": {
+                          "runAfter": {
+                            "LoopSendReactions": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "b739ff22-ad68-4549-bb55-0cdb0ebe4a8d"
+                          },
+                          "type": "Http",
+                          "inputs": {
+                            "method": "GET",
+                            "uri": "@{outputs('Site')}/_api/web/lists(guid'@{item()?['list_id']}')/items(@{item()?['item_id']})/Comments?$expand=replies,likedBy",
+                            "headers": {
+                              "accept": "application/json;odata=nometadata"
+                            },
+                            "authentication": {
+                              "type": "ActiveDirectoryOAuth",
+                              "authority": "https://login.microsoftonline.com",
+                              "tenant": "@{variables('Params')?['tenant_id']}",
+                              "audience": "https://inpartecbr-admin.sharepoint.com",
+                              "clientId": "@{variables('Params')?['client_id']}",
+                              "pfx": "@{variables('Params')?['pfx']}",
+                              "password": "@{variables('Params')?['pwd']}"
+                            }
+                          },
+                          "runtimeConfiguration": {
+                            "contentTransfer": {
+                              "transferMode": "Chunked"
+                            }
+                          }
+                        },
+                        "ReactionsD-1": {
+                          "runAfter": {
+                            "GetReactions": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "a1526e3d-a9ff-45b2-8d96-c3f12cb08ff0"
+                          },
+                          "type": "Query",
+                          "inputs": {
+                            "from": "@body('GetReactions')?['value']",
+                            "where": "@lessOrEquals(div(\r\nsub(\r\n  ticks(utcNow()),\r\n  ticks(item()?['creationDate'])\r\n),\r\n864000000000\r\n),variables('BackDays'))"
+                          }
+                        },
+                        "CommentsD-1": {
+                          "runAfter": {
+                            "GetComments": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "f36ecf20-7a4c-4ae8-bdea-0eb4f086ea6a"
+                          },
+                          "type": "Query",
+                          "inputs": {
+                            "from": "@body('GetComments')?['value']",
+                            "where": "@lessOrEquals(div(\nsub(\n  ticks(utcNow()),\n  ticks(item()?['createdDate'])\n),\n864000000000\n),variables('BackDays'))"
+                          }
+                        },
+                        "Interactions": {
+                          "actions": {
+                            "SendPageToDV": {
+                              "runAfter": {},
+                              "metadata": {
+                                "operationMetadataId": "a26e4a6c-d436-4b63-92b2-f56e864fe7ed"
+                              },
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "connectionName": "shared_commondataserviceforapps",
+                                  "operationId": "CreateRecord",
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps"
+                                },
+                                "parameters": {
+                                  "entityName": "cra95_bradesco_spo_reactions_pageses",
+                                  "item/cra95_comment_count": "@length(body('Comments'))",
+                                  "item/cra95_created": "@outputs('Page')?['created']",
+                                  "item/cra95_id": "@outputs('Page')['id']",
+                                  "item/cra95_like_count": "@length(body('Reactions'))",
+                                  "item/cra95_path": "@outputs('Page')?['path']",
+                                  "item/cra95_site_name": "@outputs('Page')?['site_name']",
+                                  "item/cra95_title": "@outputs('Page')?['title']",
+                                  "item/cra95_view_count": "@outputs('Page')?['views']"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              }
+                            }
+                          },
+                          "runAfter": {
+                            "HasComments": [
+                              "Succeeded"
+                            ]
+                          },
+                          "expression": {
+                            "or": [
+                              {
+                                "greater": [
+                                  "@length(body('Comments'))",
+                                  0
+                                ]
+                              },
+                              {
+                                "greater": [
+                                  "@length(body('Reactions'))",
+                                  0
+                                ]
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "553f7408-1f9e-46fa-a4b8-4ba4a1863ae9"
+                          },
+                          "type": "If"
+                        },
+                        "Reactions": {
+                          "runAfter": {
+                            "ReactionsD-1": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "5bf30681-7b67-43d7-aa98-2cc0a0ee6c7b"
+                          },
+                          "type": "Select",
+                          "inputs": {
+                            "from": "@body('ReactionsD-1')",
+                            "select": {
+                              "id": "@concat(outputs('Page')?['id'], '-', item()?['id'])",
+                              "name": "@item()?['name']",
+                              "mail": "@item()?['email']",
+                              "date": "@item()?['creationDate']"
+                            }
+                          }
+                        },
+                        "Page": {
+                          "runAfter": {},
+                          "metadata": {
+                            "operationMetadataId": "c853fc70-4880-4f8f-88b5-b7d15e817c70"
+                          },
+                          "type": "Compose",
+                          "inputs": "@item()"
+                        },
+                        "GetReactions": {
+                          "runAfter": {
+                            "Page": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "696ee9ab-d81d-46c2-af1f-c9a817ab41f3"
+                          },
+                          "type": "Http",
+                          "inputs": {
+                            "method": "GET",
+                            "uri": "@{outputs('Site')}/_api/web/lists(guid'@{item()?['list_id']}')/items(@{item()?['item_id']})/LikedByInformation/likedBy",
+                            "headers": {
+                              "accept": "application/json;odata=nometadata"
+                            },
+                            "authentication": {
+                              "type": "ActiveDirectoryOAuth",
+                              "authority": "https://login.microsoftonline.com",
+                              "tenant": "@{variables('Params')?['tenant_id']}",
+                              "audience": "https://inpartecbr-admin.sharepoint.com",
+                              "clientId": "@{variables('Params')?['client_id']}",
+                              "pfx": "@{variables('Params')?['pfx']}",
+                              "password": "@{variables('Params')?['pwd']}"
+                            }
+                          },
+                          "runtimeConfiguration": {
+                            "contentTransfer": {
+                              "transferMode": "Chunked"
+                            }
+                          }
+                        },
+                        "Comments": {
+                          "runAfter": {
+                            "CommentsD-1": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "0e1798dc-4185-4577-b81d-3badde71f3bb"
+                          },
+                          "type": "Select",
+                          "inputs": {
+                            "from": "@body('CommentsD-1')",
+                            "select": {
+                              "id": "@concat(outputs('Page')?['id'], '-', item()?['id'])",
+                              "name": "@item()?['author']?['name']",
+                              "mail": "@item()?['author']?['email']",
+                              "date": "@item()?['createdDate']",
+                              "content": "@item()?['text']",
+                              "like_count": "@item()?['likeCount']",
+                              "reply_count": "@item()?['replyCount']"
+                            }
+                          }
+                        },
+                        "LoopSendReactions": {
+                          "foreach": "@body('Reactions')",
+                          "actions": {
+                            "SendReactionsToDV": {
+                              "runAfter": {
+                                "Reaction": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "metadata": {
+                                "operationMetadataId": "ab9c4017-2b1b-4312-b12c-81712a866a96"
+                              },
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "connectionName": "shared_commondataserviceforapps",
+                                  "operationId": "CreateRecord",
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps"
+                                },
+                                "parameters": {
+                                  "entityName": "cra95_bradesco_spo_reactions_likeses",
+                                  "item/cra95_page_id": "@outputs('Page')['id']",
+                                  "item/cra95_date": "@item()?['date']",
+                                  "item/cra95_id": "@item()?['id']",
+                                  "item/cra95_mail": "@item()?['mail']",
+                                  "item/cra95_name": "@item()?['name']"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              }
+                            },
+                            "Reaction": {
+                              "runAfter": {},
+                              "metadata": {
+                                "operationMetadataId": "068b71b6-ad82-4dd3-a47e-975949dd9af8"
+                              },
+                              "type": "Compose",
+                              "inputs": "@item()"
+                            }
+                          },
+                          "runAfter": {
+                            "Reactions": [
+                              "Succeeded"
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "296f34d5-7430-46bb-995c-1206742ad46e"
+                          },
+                          "type": "Foreach"
+                        },
+                        "HasComments": {
+                          "actions": {
+                            "LoopSendComments": {
+                              "foreach": "@body('Comments')",
+                              "actions": {
+                                "Comment": {
+                                  "runAfter": {},
+                                  "metadata": {
+                                    "operationMetadataId": "16b5f0ea-20ba-4831-bee8-fcf3669322ea"
+                                  },
+                                  "type": "Compose",
+                                  "inputs": "@item()"
+                                },
+                                "SendCommentsToDV": {
+                                  "runAfter": {
+                                    "Comment": [
+                                      "Succeeded"
+                                    ]
+                                  },
+                                  "metadata": {
+                                    "operationMetadataId": "44cb400b-fe14-4ccd-acf4-8d3f091f8edc"
+                                  },
+                                  "type": "OpenApiConnection",
+                                  "inputs": {
+                                    "host": {
+                                      "connectionName": "shared_commondataserviceforapps",
+                                      "operationId": "CreateRecord",
+                                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps"
+                                    },
+                                    "parameters": {
+                                      "entityName": "cra95_bradesco_spo_reactions_commentses",
+                                      "item/cra95_date": "@item()?['date']",
+                                      "item/cra95_id": "@item()?['id']",
+                                      "item/cra95_like_count": "@item()?['like_count']",
+                                      "item/cra95_mail": "@item()?['mail']",
+                                      "item/cra95_name": "@item()?['name']",
+                                      "item/cra95_page_id": "@outputs('Page')['id']",
+                                      "item/cra95_comment_count": "@item()?['reply_count']",
+                                      "item/cra95_text": "@item()?['content']"
+                                    },
+                                    "authentication": "@parameters('$authentication')"
+                                  }
+                                }
+                              },
+                              "runAfter": {},
+                              "metadata": {
+                                "operationMetadataId": "2118f074-8f10-4355-af68-9518abe38247"
+                              },
+                              "type": "Foreach"
+                            },
+                            "GetCommentsReplies": {
+                              "runAfter": {
+                                "LoopSendComments": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "metadata": {
+                                "operationMetadataId": "0e1798dc-4185-4577-b81d-3badde71f3bb"
+                              },
+                              "type": "Select",
+                              "inputs": {
+                                "from": "@body('CommentsD-1')",
+                                "select": {
+                                  "replies": "@item()?['replies']"
+                                }
+                              }
+                            },
+                            "LoopGetCommentsRepliesssss": {
+                              "foreach": "@body('GetCommentsReplies')",
+                              "actions": {
+                                "CommentReplies": {
+                                  "runAfter": {},
+                                  "metadata": {
+                                    "operationMetadataId": "2bf7dae8-eecd-4919-a08d-a221d0e6c03f"
+                                  },
+                                  "type": "Select",
+                                  "inputs": {
+                                    "from": "@item()?['replies']",
+                                    "select": {
+                                      "name": "@item()?['author']?['name']",
+                                      "mail": "@item()?['author']?['email']",
+                                      "date": "@item()?['createdDate']",
+                                      "id": "@concat(outputs('Page')?['id'], '-', item()?['id'])",
+                                      "content": "@item()?['text']",
+                                      "comment_id": "@concat(outputs('Page')?['id'], '-', item()?['parentId'])"
+                                    }
+                                  }
+                                },
+                                "LoopGetCommentsReplies": {
+                                  "foreach": "@body('CommentReplies')",
+                                  "actions": {
+                                    "SendCommentsReplies": {
+                                      "runAfter": {
+                                        "CommentReply": [
+                                          "Succeeded"
+                                        ]
+                                      },
+                                      "metadata": {
+                                        "operationMetadataId": "6eb99039-45f6-4f3f-b5d1-149bb7c4bd6c"
+                                      },
+                                      "type": "OpenApiConnection",
+                                      "inputs": {
+                                        "host": {
+                                          "connectionName": "shared_commondataserviceforapps",
+                                          "operationId": "CreateRecord",
+                                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps"
+                                        },
+                                        "parameters": {
+                                          "entityName": "cra95_bradesco_spo_reactions_comments_commentses",
+                                          "item/cra95_comment_id": "@item()?['comment_id']",
+                                          "item/cra95_date": "@item()?['date']",
+                                          "item/cra95_id": "@item()?['id']",
+                                          "item/cra95_mail": "@item()?['mail']",
+                                          "item/cra95_name": "@item()?['name']",
+                                          "item/cra95_page_id": "@outputs('Page')['id']",
+                                          "item/cra95_text": "@item()?['content']"
+                                        },
+                                        "authentication": "@parameters('$authentication')"
+                                      }
+                                    },
+                                    "CommentReply": {
+                                      "runAfter": {},
+                                      "metadata": {
+                                        "operationMetadataId": "b9fdebe6-6f5f-4fae-86a7-488c4c9cefb5"
+                                      },
+                                      "type": "Compose",
+                                      "inputs": "@item()"
+                                    }
+                                  },
+                                  "runAfter": {
+                                    "CommentReplies": [
+                                      "Succeeded"
+                                    ]
+                                  },
+                                  "metadata": {
+                                    "operationMetadataId": "7f6e09c2-2744-4504-a440-2a34aef315c6"
+                                  },
+                                  "type": "Foreach"
+                                }
+                              },
+                              "runAfter": {
+                                "GetCommentsReplies": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "metadata": {
+                                "operationMetadataId": "96f32931-ad13-40df-a923-70f323ba1502"
+                              },
+                              "type": "Foreach"
+                            },
+                            "GetCommentsReactionsss": {
+                              "runAfter": {
+                                "LoopGetCommentsRepliesssss": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "metadata": {
+                                "operationMetadataId": "0e1798dc-4185-4577-b81d-3badde71f3bb"
+                              },
+                              "type": "Select",
+                              "inputs": {
+                                "from": "@body('CommentsD-1')",
+                                "select": {
+                                  "reactions": "@item()?['likedBy']"
+                                }
+                              }
+                            },
+                            "LoopGetCommentReactions": {
+                              "foreach": "@body('GetCommentsReactionsss')",
+                              "actions": {
+                                "GetCommentsReactions": {
+                                  "runAfter": {},
+                                  "metadata": {
+                                    "operationMetadataId": "23c6f746-8026-4d55-b462-43b5bebbdda5"
+                                  },
+                                  "type": "Select",
+                                  "inputs": {
+                                    "from": "@item()?['reactions']",
+                                    "select": {
+                                      "name": "@item()?['name']",
+                                      "mail": "@item()?['email']",
+                                      "date": "@item()?['creationDate']",
+                                      "id": "@concat(outputs('Page')?['id'], '-', item()?['id'])"
+                                    }
+                                  }
+                                },
+                                "LoopSendCommentsReactions": {
+                                  "foreach": "@body('GetCommentsReactions')",
+                                  "actions": {
+                                    "CommentReaction": {
+                                      "runAfter": {},
+                                      "metadata": {
+                                        "operationMetadataId": "2764d28d-eaf6-4329-ad45-335650488892"
+                                      },
+                                      "type": "Compose",
+                                      "inputs": "@item()"
+                                    },
+                                    "CommentId": {
+                                      "runAfter": {
+                                        "CommentReaction": [
+                                          "Succeeded"
+                                        ]
+                                      },
+                                      "metadata": {
+                                        "operationMetadataId": "113e295f-44ce-4d8b-9689-934809edc7b8"
+                                      },
+                                      "type": "Query",
+                                      "inputs": {
+                                        "from": "@body('CommentsD-1')",
+                                        "where": "@equals(and(\r\n  contains(\r\n    string(item()?['likedBy']),\r\n    outputs('CommentReaction')?['name']\r\n  ),\r\n  contains(\r\n    string(item()?['likedBy']),\r\n    outputs('CommentReaction')?['mail']\r\n  ),\r\n  contains(\r\n    string(item()?['likedBy']),\r\n    outputs('CommentReaction')?['date']\r\n  )\r\n),true)"
+                                      }
+                                    },
+                                    "SendCommentReactions": {
+                                      "runAfter": {
+                                        "CommentId": [
+                                          "Succeeded"
+                                        ]
+                                      },
+                                      "metadata": {
+                                        "operationMetadataId": "c96bbf25-a2c9-421e-949b-908570a5e9ca"
+                                      },
+                                      "type": "OpenApiConnection",
+                                      "inputs": {
+                                        "host": {
+                                          "connectionName": "shared_commondataserviceforapps",
+                                          "operationId": "CreateRecord",
+                                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps"
+                                        },
+                                        "parameters": {
+                                          "entityName": "cra95_bradesco_spo_reactions_comments_likeses",
+                                          "item/cra95_comment_id": "@concat(outputs('Page')?['id'], '-', body('CommentId')?[0]?['id'])",
+                                          "item/cra95_date": "@item()?['date']",
+                                          "item/cra95_id": "@item()?['id']",
+                                          "item/cra95_mail": "@item()?['mail']",
+                                          "item/cra95_name": "@item()?['name']",
+                                          "item/cra95_page_id": "@outputs('Page')['id']"
+                                        },
+                                        "authentication": "@parameters('$authentication')"
+                                      }
+                                    }
+                                  },
+                                  "runAfter": {
+                                    "GetCommentsReactions": [
+                                      "Succeeded"
+                                    ]
+                                  },
+                                  "metadata": {
+                                    "operationMetadataId": "2dfb4532-6926-4258-a895-745f1f71ca46"
+                                  },
+                                  "type": "Foreach"
+                                }
+                              },
+                              "runAfter": {
+                                "GetCommentsReactionsss": [
+                                  "Succeeded"
+                                ]
+                              },
+                              "metadata": {
+                                "operationMetadataId": "42d6b3bd-5331-4470-89aa-8625c7d7fe81"
+                              },
+                              "type": "Foreach"
+                            }
+                          },
+                          "runAfter": {
+                            "Comments": [
+                              "Succeeded"
+                            ]
+                          },
+                          "expression": {
+                            "and": [
+                              {
+                                "greater": [
+                                  "@length(body('Comments'))",
+                                  0
+                                ]
+                              }
+                            ]
+                          },
+                          "metadata": {
+                            "operationMetadataId": "3a858531-fe2d-4af2-91eb-b1ce326e5d7f"
+                          },
+                          "type": "If"
+                        }
+                      },
+                      "runAfter": {
+                        "Pages": [
+                          "Succeeded"
+                        ]
+                      },
+                      "metadata": {
+                        "operationMetadataId": "12293b77-6e8c-4d50-b623-e47a94bf103f"
+                      },
+                      "type": "Foreach"
+                    }
+                  },
+                  "runAfter": {
+                    "GetSitePages": [
+                      "Succeeded",
+                      "Failed"
+                    ]
+                  },
+                  "expression": {
+                    "and": [
+                      {
+                        "equals": [
+                          "@actions('GetSitePages')?['status']",
+                          "Succeeded"
+                        ]
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "operationMetadataId": "d70c8d0b-4d0f-4a12-b7fb-887a3525764d"
+                  },
+                  "type": "If"
+                }
+              },
+              "runAfter": {
+                "Site": [
+                  "Succeeded"
+                ]
+              },
+              "expression": "@equals(empty(body('GetSitePages')?['PrimaryQueryResult']?['RelevantResults']?['Table']?['Rows']),true)",
+              "limit": {
+                "timeout": "PT48H"
+              },
+              "metadata": {
+                "operationMetadataId": "8284bfdf-3b4f-4120-9bb1-3ac0840e8a52"
+              },
+              "type": "Until"
+            },
+            "Site": {
+              "runAfter": {},
+              "metadata": {
+                "operationMetadataId": "00c30f3f-93d7-4c3d-b4c4-5dc5a2d0a8cf"
+              },
+              "type": "Compose",
+              "inputs": "@item()"
+            }
+          },
+          "runAfter": {
+            "Sites": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "3aaffb88-95f5-4346-864e-de5962eba235"
+          },
+          "type": "Foreach"
+        },
+        "BackDays": {
+          "runAfter": {
+            "AuxPageComments": [
+              "Succeeded"
+            ]
+          },
+          "metadata": {
+            "operationMetadataId": "0bf3e17e-a612-4426-9432-4c0e7f85526a"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "BackDays",
+                "type": "integer",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "Params": {
+          "runAfter": {},
+          "metadata": {
+            "operationMetadataId": "44df414e-afd6-47d3-8069-ec6251ccd0ea"
+          },
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "Params",
+                "type": "object",
+                "value": {
+                  "client_id": "@parameters('client_id (imp_client_id)')",
+                  "tenant_id": "@parameters('tenant_id (imp_tenant_id)')",
+                  "pfx": "@concat(\r\n  parameters('pfx_b64_pt1 (imp_pfx_b64_pt1)'),\r\n  parameters('pfx_b64_pt2 (imp_pfx_b64_pt2)')\r\n)"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "templateName": ""
+  },
+  "schemaVersion": "1.0.0.0"
+}
